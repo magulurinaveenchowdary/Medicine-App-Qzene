@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
-import 'package:med_reminder/core/models/ExactAlarmSettingsLaunchResult.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Android runtime permissions for onboarding (PRD §6.1).
@@ -14,49 +13,20 @@ class AppAndroidPermissionsRequestService {
     return status.isGranted;
   }
 
-  /// Whether [AlarmManager.canScheduleExactAlarms] is true (API 31+).
+  /// Whether SCHEDULE_EXACT_ALARM is granted (Android 12+ / API 31+).
+  /// Returns true on older Android where the permission is implicit.
   Future<bool> isExactAlarmPermissionGranted() async {
     if (!Platform.isAndroid) return true;
-    try {
-      final granted = await _alarmChannel.invokeMethod<bool>('canScheduleExactAlarms');
-      return granted ?? false;
-    } on PlatformException {
-      return false;
-    }
+    return (await Permission.scheduleExactAlarm.status).isGranted;
   }
 
-  /// Opens **Alarms & reminders** only when the user still needs to grant access.
-  ///
-  /// Does not grant permission in code. If already granted, returns without opening
-  /// settings (avoids the grey non-interactive ON toggle on the request screen).
-  /// Opens **Alarms & reminders** for the user to grant access.
-  ///
-  /// When [forceOpen] is true (onboarding Allow tap), always launches the exact-alarm
-  /// settings screen on API 31+ even if [canScheduleExactAlarms] already reports true.
-  /// That check can false-positive after unrelated settings (e.g. battery) were opened.
-  Future<ExactAlarmSettingsLaunchResult> openExactAlarmSettingsForUserGrant({
-    bool forceOpen = false,
-  }) async {
-    if (!Platform.isAndroid) {
-      return const ExactAlarmSettingsLaunchResult(
-        openedSettings: false,
-        alreadyGranted: true,
-        requiresUserGrant: false,
-      );
-    }
-    try {
-      final map = await _alarmChannel.invokeMethod<Map<dynamic, dynamic>>(
-        'requestScheduleExactAlarmPermission',
-        {'forceOpen': forceOpen},
-      );
-      return ExactAlarmSettingsLaunchResult.fromPlatformMap(map);
-    } on PlatformException {
-      return const ExactAlarmSettingsLaunchResult(
-        openedSettings: false,
-        alreadyGranted: false,
-        requiresUserGrant: true,
-      );
-    }
+  /// Requests SCHEDULE_EXACT_ALARM. On Android 12+ this opens the system
+  /// Alarms & reminders settings screen and awaits the user's action before
+  /// returning the updated status. Returns true when granted.
+  Future<bool> requestScheduleExactAlarm() async {
+    if (!Platform.isAndroid) return true;
+    final status = await Permission.scheduleExactAlarm.request();
+    return status.isGranted;
   }
 
   Future<bool> isBatteryOptimizationExemptionGranted() async {
@@ -69,6 +39,25 @@ class AppAndroidPermissionsRequestService {
     if (!Platform.isAndroid) return true;
     final status = await Permission.ignoreBatteryOptimizations.request();
     return status.isGranted;
+  }
+
+  /// Whether USE_FULL_SCREEN_INTENT is granted (Android 14+ / API 34+).
+  /// Returns true on older Android where the permission is auto-granted.
+  Future<bool> isFullScreenIntentGranted() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      return await _alarmChannel.invokeMethod<bool>('canUseFullScreenIntent') ?? true;
+    } on PlatformException {
+      return true;
+    }
+  }
+
+  /// Opens the system USE_FULL_SCREEN_INTENT settings page for this app (Android 14+).
+  Future<void> openFullScreenIntentSettings() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _alarmChannel.invokeMethod<void>('openFullScreenIntentSettings');
+    } on PlatformException {}
   }
 
   /// Opens the system battery-optimization screen for this app (not App info).

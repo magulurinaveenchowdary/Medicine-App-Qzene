@@ -1,6 +1,7 @@
 package com.nanogear.med_reminder
 
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -84,6 +85,26 @@ class MainActivity : FlutterActivity() {
                 "cancelAllAlarms" -> {
                     cancelAllAlarms()
                     result.success(null)
+                }
+                "canUseFullScreenIntent" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        result.success(nm.canUseFullScreenIntent())
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "openFullScreenIntentSettings" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                            data = Uri.parse("package:$packageName")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        try { startActivity(intent); result.success(true) }
+                        catch (_: Exception) { result.success(false) }
+                    } else {
+                        result.success(true)
+                    }
                 }
                 else -> result.notImplemented()
             }
@@ -205,22 +226,34 @@ class MainActivity : FlutterActivity() {
         body: String,
     ) {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val launchIntent = Intent(this, MainActivity::class.java).apply {
+        val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+
+        // Broadcast intent triggers DoseAlarmReceiver, which shows a full-screen notification
+        // and also attempts a direct activity launch. Using getBroadcast here so that
+        // cancelAllAlarms() can look up the same PendingIntent type and actually cancel it.
+        val receiverIntent = Intent(this, DoseAlarmReceiver::class.java).apply {
+            putExtra(DoseAlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+            putExtra(DoseAlarmReceiver.EXTRA_TITLE, title)
+            putExtra(DoseAlarmReceiver.EXTRA_BODY, body)
+        }
+        val alarmPending = PendingIntent.getBroadcast(this, alarmId, receiverIntent, pendingFlags)
+
+        // Activity intent shown in the system clock badge — tapping it opens the alarm screen.
+        val showIntent = Intent(this, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN
             addCategory(Intent.CATEGORY_LAUNCHER)
             putExtra("route", "/alarm?occurrenceId=$occurrenceId")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
-        val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val pending = PendingIntent.getActivity(this, alarmId, launchIntent, pendingFlags)
-        val showIntent = PendingIntent.getActivity(
+        val showPending = PendingIntent.getActivity(
             this,
             alarmId + 100_000,
-            launchIntent,
+            showIntent,
             pendingFlags,
         )
-        val info = AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent)
-        alarmManager.setAlarmClock(info, pending)
+
+        val info = AlarmManager.AlarmClockInfo(triggerAtMillis, showPending)
+        alarmManager.setAlarmClock(info, alarmPending)
     }
 
     private fun cancelAllAlarms() {

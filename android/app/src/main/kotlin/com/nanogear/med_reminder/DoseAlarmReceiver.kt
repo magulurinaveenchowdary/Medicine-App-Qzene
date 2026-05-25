@@ -4,18 +4,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-/// Fires when AlarmManager clock triggers — launches Flutter alarm route.
+/// Fires when AlarmManager clock triggers.
+/// Delegates to AlarmForegroundService which can startActivity() reliably
+/// regardless of screen state (on/off, locked/unlocked).
 class DoseAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val occurrenceId = intent.getStringExtra(EXTRA_OCCURRENCE_ID) ?: return
-        val launch = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = android.net.Uri.parse("medreminder://alarm?occurrenceId=$occurrenceId")
-            addCategory(Intent.CATEGORY_DEFAULT)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("route", "/alarm?occurrenceId=$occurrenceId")
-        }
-        context.startActivity(launch)
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Medicine Reminder"
+        val body = intent.getStringExtra(EXTRA_BODY) ?: "Time to take your medicine"
+
+        // The setAlarmClock() exemption on Android 12+ allows this receiver to start
+        // a foreground service from the background.  The service then calls startActivity()
+        // — which always works from a running foreground service — so the alarm screen
+        // appears automatically without the user having to tap the notification.
+        AlarmForegroundService.startForAlarm(context, occurrenceId, title, body)
     }
 
     companion object {

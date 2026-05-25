@@ -47,14 +47,18 @@ final appGoRouterProvider = Provider<GoRouter>((ref) {
   /// Parses deep-link URIs (e.g., medreminder://after-call/single) to app routes.
   String? _parseDeepLinkToRoute(Uri uri) {
     if (uri.scheme == 'medreminder') {
-      final path = uri.path;
-      if (path.isNotEmpty) {
-        // medreminder://after-call/single -> /after-call/single
-        // medreminder://alarm?occurrenceId=... -> /alarm?occurrenceId=...
+      // medreminder://after-call/single -> /after-call/single
+      // medreminder://alarm?occurrenceId=... -> /alarm?occurrenceId=...
+      // Dart's Uri puts the authority ("after-call", "alarm") in uri.host,
+      // not uri.path, so we must combine them to get the full route path.
+      final host = uri.host; // e.g. 'after-call', 'alarm'
+      final path = uri.path; // e.g. '/single', ''
+      final fullPath = host.isNotEmpty ? '/$host$path' : path;
+      if (fullPath.isNotEmpty && fullPath != '/') {
         if (uri.query.isNotEmpty) {
-          return '$path?${uri.query}';
+          return '$fullPath?${uri.query}';
         }
-        return path;
+        return fullPath;
       }
     }
     return null;
@@ -291,12 +295,38 @@ final appGoRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/after-call/single',
         parentNavigatorKey: appRootNavigatorKey,
-        builder: (context, state) => const AfterCallSmartDispatcher(),
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          opaque: false,
+          barrierColor: Colors.black54,
+          barrierDismissible: false,
+          transitionDuration: const Duration(milliseconds: 350),
+          child: const AfterCallSmartDispatcher(),
+          transitionsBuilder: (context, animation, _, child) => SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
       ),
       GoRoute(
         path: '/after-call/multi',
         parentNavigatorKey: appRootNavigatorKey,
-        builder: (context, state) => const AfterCallMultiScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          opaque: false,
+          barrierColor: Colors.black54,
+          barrierDismissible: false,
+          transitionDuration: const Duration(milliseconds: 350),
+          child: const AfterCallMultiScreen(),
+          transitionsBuilder: (context, animation, _, child) => SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
       ),
       GoRoute(
         path: '/after-call/disable-confirm',
@@ -314,26 +344,41 @@ final appGoRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class AfterCallSmartDispatcher extends ConsumerWidget {
+class AfterCallSmartDispatcher extends ConsumerStatefulWidget {
   const AfterCallSmartDispatcher({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AfterCallSmartDispatcher> createState() =>
+      _AfterCallSmartDispatcherState();
+}
+
+class _AfterCallSmartDispatcherState
+    extends ConsumerState<AfterCallSmartDispatcher> {
+  // Locked in on first data load; never changes afterwards so that a
+  // dose action (take/snooze/skip) on the multi screen can't cause the
+  // dispatcher to switch the user to a different screen mid-interaction.
+  bool? _useMulti;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_useMulti != null) {
+      return _useMulti! ? const AfterCallMultiScreen() : const AfterCallSingleScreen();
+    }
+
     final dataAsync = ref.watch(medicineAppDataNotifierProvider);
     return dataAsync.when(
       loading: () => const Scaffold(
         body: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (e, _) => const AfterCallSingleScreen(),
+      error: (e, _) {
+        _useMulti = false;
+        return const AfterCallSingleScreen();
+      },
       data: (_) {
         final notifier = ref.read(medicineAppDataNotifierProvider.notifier);
-        // Query upcoming doses in the next 4 hours (240 minutes)
         final upcomingDoses = notifier.upcomingDoseRowsWithinMinutes(240);
-        if (upcomingDoses.length >= 3) {
-          return const AfterCallMultiScreen();
-        } else {
-          return const AfterCallSingleScreen();
-        }
+        _useMulti = upcomingDoses.length >= 3;
+        return _useMulti! ? const AfterCallMultiScreen() : const AfterCallSingleScreen();
       },
     );
   }

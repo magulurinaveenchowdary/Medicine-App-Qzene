@@ -34,7 +34,6 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
   var batteryGranted = false;
   var alarmsGranted = false;
   var _awaitingBatterySettingsReturn = false;
-  var _awaitingAlarmsSettingsReturn = false;
   var _notifPromptLogged = false;
   var _batteryPromptLogged = false;
   var _alarmsPromptLogged = false;
@@ -138,22 +137,9 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
 
   Future<void> _onAllowAlarmsTap() async {
     await _logAlarmsShownOnce();
-    final launchResult = await _permissions.openExactAlarmSettingsForUserGrant(
-      forceOpen: true,
-    );
+    final granted = await _permissions.requestScheduleExactAlarm();
     if (!mounted) return;
-    if (launchResult.alreadyGranted) {
-      await _applyAlarmsGranted(true);
-      return;
-    }
-    if (launchResult.openedSettings) {
-      _awaitingAlarmsSettingsReturn = true;
-      return;
-    }
-    await _analytics.logPrdEvent(
-      AppAnalyticsEventNamesConstants.onbAlarmsPermissionResult,
-      {AppAnalyticsParameterNamesConstants.result: 'denied'},
-    );
+    await _applyAlarmsGranted(granted);
   }
 
   Future<void> _onAppResumed() async {
@@ -165,12 +151,6 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
         _awaitingBatterySettingsReturn = false;
         await _applyBatteryGranted(true);
       }
-    }
-    if (_awaitingAlarmsSettingsReturn) {
-      _awaitingAlarmsSettingsReturn = false;
-      final granted = await _permissions.isExactAlarmPermissionGranted();
-      if (!mounted) return;
-      await _applyAlarmsGranted(granted);
     }
   }
 

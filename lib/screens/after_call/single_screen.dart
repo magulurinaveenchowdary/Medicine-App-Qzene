@@ -21,6 +21,16 @@ class AfterCallSingleScreen extends ConsumerStatefulWidget {
 class _AfterCallSingleScreenState extends ConsumerState<AfterCallSingleScreen> {
   late final DateTime _shownAt;
 
+  void _dismiss() {
+    final dwell = DateTime.now().difference(_shownAt).inSeconds;
+    ref.read(appPrdAnalyticsBridgeProvider).adAftercallDismissed(dwell);
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/main/today');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -77,166 +87,180 @@ class _AfterCallSingleScreenState extends ConsumerState<AfterCallSingleScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundGrey,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Top Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: const BoxDecoration(
-                color: AppColors.cardWhite,
-                border: Border(
-                  bottom: BorderSide(color: AppColors.divider),
-                ),
-              ),
-              child: Row(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          // Dark strip at top — tap to dismiss
+          GestureDetector(
+            onTap: _dismiss,
+            behavior: HitTestBehavior.opaque,
+            child: const SizedBox(height: 32, width: double.infinity),
+          ),
+          // Full-screen popup card with rounded top corners
+          Expanded(
+            child: Material(
+              color: AppColors.backgroundGrey,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.xmark, size: 22, color: AppColors.textSecondary),
-                    onPressed: () {
-                      final dwell = DateTime.now().difference(_shownAt).inSeconds;
-                      ref.read(appPrdAnalyticsBridgeProvider).adAftercallDismissed(dwell);
-                      context.pop();
-                    },
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Call ended',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 6),
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 48), // Spacer to balance the X button
-                ],
-              ),
-            ),
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    // Medicine Icon
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBlueTint,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      alignment: Alignment.center,
-                      child: const MedicinePillIconWidget(size: 38),
+                  // Top bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: const BoxDecoration(
+                      color: AppColors.cardWhite,
+                      border: Border(bottom: BorderSide(color: AppColors.divider)),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Add Medicine Section Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardWhite,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryBlue,
-                              foregroundColor: AppColors.cardWhite,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              elevation: 0,
-                            ),
-                            onPressed: () {
-                              ref.read(appPrdAnalyticsBridgeProvider).adAftercallAddMedClicked();
-                              ref.read(appPrdAnalyticsBridgeProvider).addMedStarted('aftercall');
-                              ref.read(addMedicineDraftNotifierProvider.notifier).resetDraft();
-                              context.push('/add-medicine/name');
-                            },
-                            child: const Text(
-                              '+ Add a new medicine',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Just got a prescription? Add it now.',
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(CupertinoIcons.xmark, size: 22, color: AppColors.textSecondary),
+                          onPressed: _dismiss,
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Call ended',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+                  // Content
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 12),
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryBlueTint,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            alignment: Alignment.center,
+                            child: const MedicinePillIconWidget(size: 38),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            title,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            subtitle,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 13,
                               color: AppColors.textSecondary,
                             ),
                           ),
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.cardWhite,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primaryBlue,
+                                    foregroundColor: AppColors.cardWhite,
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: () {
+                                    ref.read(appPrdAnalyticsBridgeProvider).adAftercallAddMedClicked();
+                                    ref.read(appPrdAnalyticsBridgeProvider).addMedStarted('aftercall');
+                                    ref.read(addMedicineDraftNotifierProvider.notifier).resetDraft();
+                                    context.push('/add-medicine/name');
+                                  },
+                                  child: const Text(
+                                    '+ Add a new medicine',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Just got a prescription? Add it now.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          AdBanner(
+                            placement: 'after_call_single',
+                            onAftercallTap: () => ref.read(appPrdAnalyticsBridgeProvider).adAftercallBannerClicked(),
+                          ),
+                          const Spacer(),
+                          CupertinoButton(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            onPressed: _dismiss,
+                            child: Text(
+                              l10n.dismiss,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const Spacer(),
-                    // Ad banner (300x250 medium rectangle)
-                    AdBanner(
-                      placement: 'after_call_single',
-                      onAftercallTap: () => ref.read(appPrdAnalyticsBridgeProvider).adAftercallBannerClicked(),
-                    ),
-                    const Spacer(),
-                    // Dismiss Button
-                    CupertinoButton(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      onPressed: () {
-                        final dwell = DateTime.now().difference(_shownAt).inSeconds;
-                        ref.read(appPrdAnalyticsBridgeProvider).adAftercallDismissed(dwell);
-                        context.pop();
-                      },
-                      child: Text(
-                        l10n.dismiss,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

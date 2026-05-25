@@ -62,7 +62,6 @@ class _AlarmFullscreenScreenState extends ConsumerState<AlarmFullscreenScreen> {
           AppAnalyticsParameterNamesConstants.timeToFireActualMs: 0,
         },
       );
-      // PRD §12.3, Screen 12 — sys_alarm_late: fire if alarm fired >60s late.
       if (widget.initialOccurrenceId != null) {
         final notifier = ref.read(medicineAppDataNotifierProvider.notifier);
         final occurrence = notifier.occurrenceById(widget.initialOccurrenceId!);
@@ -71,7 +70,6 @@ class _AlarmFullscreenScreenState extends ConsumerState<AlarmFullscreenScreen> {
           if (scheduledAt != null) {
             final delayMs = now.difference(scheduledAt).inMilliseconds;
             if (delayMs > 60000) {
-              // Best-effort Doze detection: if delay > 5 min assume Doze was active.
               final wasInDoze = delayMs > 300000;
               bridge.sysAlarmLate(
                 medicineId: occurrence.medicineId,
@@ -104,11 +102,23 @@ class _AlarmFullscreenScreenState extends ConsumerState<AlarmFullscreenScreen> {
   }
 }
 
+// Shows the real current time/date — previously hardcoded to "8:00 AM, Tuesday March 18".
 class _AlarmClockHeader extends StatelessWidget {
   const _AlarmClockHeader();
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final timeLabel = TimeOfDay.fromDateTime(now).format(context);
+    const weekdays = [
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+    ];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final dateLabel =
+        '${weekdays[(now.weekday - 1).clamp(0, 6)]}, ${months[(now.month - 1).clamp(0, 11)]} ${now.day}';
     return Column(
       children: [
         const Icon(
@@ -117,9 +127,9 @@ class _AlarmClockHeader extends StatelessWidget {
           color: AppColors.primaryBlue,
         ),
         const SizedBox(height: 4),
-        Text('8:00 AM', style: AppTextStyles.bigTime),
+        Text(timeLabel, style: AppTextStyles.bigTime),
         Text(
-          'Tuesday, March 18',
+          dateLabel,
           style: AppTextStyles.cardSubtitle.copyWith(fontSize: 14),
         ),
       ],
@@ -131,11 +141,6 @@ class _SingleAlarmBody extends ConsumerWidget {
   const _SingleAlarmBody({required this.openedAt, this.occurrenceId});
   final DateTime openedAt;
   final String? occurrenceId;
-
-  void _openSnooze(BuildContext context, MedicineDoseDisplayRowModel? row) {
-    final medicineId = row?.medicineId ?? '';
-    context.push('/alarm/snooze?medicineId=$medicineId&consolidated=0');
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -232,7 +237,17 @@ class _SingleAlarmBody extends ConsumerWidget {
                     child: SecondaryActionButton(
                       label: 'Snooze',
                       variant: SecondaryActionButtonVariant.snooze,
-                      onPressed: () => _openSnooze(context, row),
+                      onPressed: () async {
+                        final durationMin = await context.push<int>(
+                          '/alarm/snooze?medicineId=${row?.medicineId ?? ''}&consolidated=0',
+                        );
+                        if (durationMin != null && row != null && context.mounted) {
+                          await ref
+                              .read(medicineAppDataNotifierProvider.notifier)
+                              .markDoseSnoozed(row.occurrenceId, durationMin);
+                          if (context.mounted) context.pop();
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(width: AppDimensions.gapSM),
@@ -243,6 +258,9 @@ class _SingleAlarmBody extends ConsumerWidget {
                       onPressed: () async {
                         if (row != null) {
                           await ref.read(appPrdAnalyticsBridgeProvider).alarmSkipTapped(row.medicineId);
+                          await ref
+                              .read(medicineAppDataNotifierProvider.notifier)
+                              .markDoseSkipped(row.occurrenceId);
                         }
                         if (context.mounted) context.pop();
                       },
@@ -280,8 +298,19 @@ class _ConsolidatedAlarmBody extends ConsumerStatefulWidget {
 class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> {
   int? _openMenuIndex;
 
-  void _openSnoozeSheet(int medCount) {
-    context.push('/alarm/snooze?consolidated=1&medCount=$medCount');
+  /// Opens the snooze sheet, awaits the selected duration, then snoozes every
+  /// row in [rows] and closes the alarm screen.
+  Future<void> _openSnoozeSheet(List<MedicineDoseDisplayRowModel> rows) async {
+    final durationMin = await context.push<int>(
+      '/alarm/snooze?consolidated=1&medCount=${rows.length}',
+    );
+    if (!mounted || durationMin == null) return;
+    for (final row in rows) {
+      await ref
+          .read(medicineAppDataNotifierProvider.notifier)
+          .markDoseSnoozed(row.occurrenceId, durationMin);
+    }
+    if (mounted) context.pop();
   }
 
   Future<void> _onPopInvoked(bool didPop, List<MedicineDoseDisplayRowModel> rows) async {
@@ -332,6 +361,7 @@ class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> 
       counts = counts.recordSnooze();
     } else if (action == 'skip') {
       counts = counts.recordSkip();
+      await ref.read(medicineAppDataNotifierProvider.notifier).markDoseSkipped(row.occurrenceId);
     }
     ref.read(alarmSessionActionCountsProvider.notifier).state = counts;
     setState(() => _openMenuIndex = null);
@@ -387,15 +417,22 @@ class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> 
                             total: rows.length,
                             action: 'take',
                           ),
-                          onPerMedSnooze: () {
-                            _perMedAction(
-                              row: rows[i],
+                          onPerMedSnooze: () async {
+                            final row = rows[i]; // capture index before async gap
+                            await _perMedAction(
+                              row: row,
                               position: i + 1,
                               total: rows.length,
                               action: 'snooze',
                               snoozeMin: 10,
                             );
-                            _openSnoozeSheet(rows.length);
+                            final durationMin = await context.push<int>(
+                              '/alarm/snooze?medicineId=${row.medicineId}&consolidated=0',
+                            );
+                            if (!mounted || durationMin == null) return;
+                            await ref
+                                .read(medicineAppDataNotifierProvider.notifier)
+                                .markDoseSnoozed(row.occurrenceId, durationMin);
                           },
                           onPerMedSkip: () => _perMedAction(
                             row: rows[i],
@@ -423,6 +460,11 @@ class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> 
                                 await ref.read(appPrdAnalyticsBridgeProvider).alarmSkipAllTapped(rows.length);
                                 ref.read(alarmSessionActionCountsProvider.notifier).state =
                                     AlarmSessionActionCountsModel(skipCount: rows.length);
+                                for (final row in rows) {
+                                  await ref
+                                      .read(medicineAppDataNotifierProvider.notifier)
+                                      .markDoseSkipped(row.occurrenceId);
+                                }
                                 if (context.mounted) context.pop();
                               },
                             ),
@@ -432,7 +474,9 @@ class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> 
                             child: SecondaryActionButton(
                               label: l10n.snoozeAll,
                               variant: SecondaryActionButtonVariant.snooze,
-                              onPressed: () => _openSnoozeSheet(rows.length),
+                              onPressed: () => _openSnoozeSheet(
+                                List<MedicineDoseDisplayRowModel>.from(rows),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 6),

@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Required on Android 9+ (API 28) to call startForeground() at all. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- PRD §10: FOREGROUND_SERVICE_MEDIA_PLAYBACK required on Android 14+ (API 34)
          for any foreground service that plays audio (alarm sound). Without this the
          OS throws at runtime when startForeground() is called on API 34+. -->

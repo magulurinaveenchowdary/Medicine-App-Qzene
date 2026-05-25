@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:med_reminder/core/constants/AppColorsDesignTokens.dart';
+import 'package:med_reminder/core/services/AppAndroidPermissionsRequestService.dart';
+import 'package:med_reminder/core/widgets/OnboardingScreenWidgets/PermissionSetupCardWidget.dart';
+import 'package:med_reminder/screens/onboarding/permissions_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:med_reminder/core/constants/AppSpacingLayoutTokens.dart';
 import 'package:med_reminder/core/date/week_date_strip_helper.dart';
 import 'package:med_reminder/core/constants/AppAnalyticsEventNamesConstants.dart';
@@ -165,10 +170,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           header: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _HomePermissionWarningBanner(
-                onShown: _maybeLogPermissionWarning,
-                onTap: () => ref.read(appPrdAnalyticsBridgeProvider).homePermissionWarningTapped('notif|battery|alarms'),
-              ),
+              // _HomePermissionWarningBanner(
+              //   onShown: _maybeLogPermissionWarning,
+              //   onTap: () => ref.read(appPrdAnalyticsBridgeProvider).homePermissionWarningTapped('notif|battery|alarms'),
+              // ),
               HomeProfileTopBar(
                 profileName: profile.displayName,
                 avatarLetter: profile.avatarLetter ?? profile.displayName.characters.first,
@@ -370,16 +375,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 }
 
-class _HomePermissionWarningBanner extends StatefulWidget {
+class _HomePermissionWarningBanner extends ConsumerStatefulWidget {
   const _HomePermissionWarningBanner({required this.onShown, required this.onTap});
   final VoidCallback onShown;
   final VoidCallback onTap;
 
   @override
-  State<_HomePermissionWarningBanner> createState() => _HomePermissionWarningBannerState();
+  ConsumerState<_HomePermissionWarningBanner> createState() => _HomePermissionWarningBannerState();
 }
 
-class _HomePermissionWarningBannerState extends State<_HomePermissionWarningBanner> {
+class _HomePermissionWarningBannerState extends ConsumerState<_HomePermissionWarningBanner> {
   var _visible = true;
 
   @override
@@ -391,13 +396,26 @@ class _HomePermissionWarningBannerState extends State<_HomePermissionWarningBann
     });
   }
 
+  void _showPermissionsDialog(BuildContext context) {
+    final service = ref.read(appAndroidPermissionsRequestServiceProvider);
+    showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: true,
+      builder: (_) => _PermissionsReviewDialog(service: service),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
     return Material(
       color: AppColorsDesignTokens.colorWarningTint,
       child: InkWell(
-        onTap: widget.onTap,
+        onTap: () {
+          widget.onTap();
+          _showPermissionsDialog(context);
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
@@ -416,6 +434,245 @@ class _HomePermissionWarningBannerState extends State<_HomePermissionWarningBann
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionsReviewDialog extends StatefulWidget {
+  const _PermissionsReviewDialog({required this.service});
+  final AppAndroidPermissionsRequestService service;
+
+  @override
+  State<_PermissionsReviewDialog> createState() => _PermissionsReviewDialogState();
+}
+
+class _PermissionsReviewDialogState extends State<_PermissionsReviewDialog>
+    with WidgetsBindingObserver {
+  bool _notifGranted = false;
+  bool _batteryGranted = false;
+  bool _alarmsGranted = false;
+  bool _fullScreenGranted = false;
+  bool _loading = true;
+  bool _awaitingBatteryReturn = false;
+  bool _awaitingFullScreenReturn = false;
+
+  AppAndroidPermissionsRequestService get _svc => widget.service;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadStatus());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _loadStatus() async {
+    if (!Platform.isAndroid) {
+      if (mounted) setState(() { _notifGranted = true; _batteryGranted = true; _alarmsGranted = true; _fullScreenGranted = true; _loading = false; });
+      return;
+    }
+    final notif = (await Permission.notification.status).isGranted;
+    final battery = await _svc.isBatteryOptimizationExemptionGranted();
+    final alarms = await _svc.isExactAlarmPermissionGranted();
+    final fullScreen = await _svc.isFullScreenIntentGranted();
+    if (!mounted) return;
+    setState(() {
+      _notifGranted = notif;
+      _batteryGranted = battery;
+      _alarmsGranted = alarms;
+      _fullScreenGranted = fullScreen;
+      _loading = false;
+    });
+    if (notif && battery && alarms && fullScreen) _dismiss();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _onAppResumed();
+  }
+
+  Future<void> _onAppResumed() async {
+    if (_awaitingBatteryReturn) {
+      final granted = await _svc.isBatteryOptimizationExemptionGranted();
+      if (!mounted) return;
+      if (granted) {
+        _awaitingBatteryReturn = false;
+        setState(() => _batteryGranted = true);
+        _maybeAutoDismiss();
+      }
+    }
+    if (_awaitingFullScreenReturn) {
+      final granted = await _svc.isFullScreenIntentGranted();
+      if (!mounted) return;
+      if (granted) {
+        _awaitingFullScreenReturn = false;
+        setState(() => _fullScreenGranted = true);
+        _maybeAutoDismiss();
+      }
+    }
+  }
+
+  void _dismiss() {
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  void _maybeAutoDismiss() {
+    if (_notifGranted && _batteryGranted && _alarmsGranted && _fullScreenGranted) _dismiss();
+  }
+
+  Future<void> _allowNotif() async {
+    final granted = await _svc.requestNotificationPermission();
+    if (!mounted) return;
+    setState(() => _notifGranted = granted);
+    _maybeAutoDismiss();
+  }
+
+  Future<void> _allowBattery() async {
+    if (await _svc.isBatteryOptimizationExemptionGranted()) {
+      if (!mounted) return;
+      setState(() => _batteryGranted = true);
+      _maybeAutoDismiss();
+      return;
+    }
+    final granted = await _svc.requestBatteryOptimizationExemption();
+    if (!mounted) return;
+    if (granted) {
+      setState(() => _batteryGranted = true);
+      _maybeAutoDismiss();
+      return;
+    }
+    _awaitingBatteryReturn = true;
+    await _svc.openBatteryOptimizationSettings();
+  }
+
+  Future<void> _allowAlarms() async {
+    final granted = await _svc.requestScheduleExactAlarm();
+    if (!mounted) return;
+    setState(() => _alarmsGranted = granted);
+    _maybeAutoDismiss();
+  }
+
+  Future<void> _allowFullScreen() async {
+    _awaitingFullScreenReturn = true;
+    await _svc.openFullScreenIntentSettings();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.all(32),
+          child: Center(child: CupertinoActivityIndicator()),
+        ),
+      );
+    }
+
+    final items = <Widget>[];
+
+    if (!_notifGranted) {
+      items.add(PermissionSetupCard(
+        title: 'Notifications',
+        subtitle: 'Required to deliver dose reminders.',
+        icon: CupertinoIcons.bell_fill,
+        iconBackground: AppColorsDesignTokens.colorHealthTint,
+        iconColor: AppColorsDesignTokens.colorHealth,
+        isGranted: false,
+        isRequired: true,
+        onAllow: _allowNotif,
+      ));
+    }
+
+    if (!_batteryGranted) {
+      items.add(PermissionSetupCard(
+        title: 'Battery optimization',
+        subtitle: 'Prevents Android from stopping reminders in the background.',
+        icon: CupertinoIcons.battery_full,
+        iconBackground: AppColorsDesignTokens.colorWarningTint,
+        iconColor: AppColorsDesignTokens.colorWarning,
+        isGranted: false,
+        isRequired: true,
+        onAllow: _allowBattery,
+      ));
+    }
+
+    if (!_alarmsGranted) {
+      items.add(PermissionSetupCard(
+        title: 'Exact alarms',
+        subtitle: 'Needed to fire reminders at the exact scheduled time.',
+        icon: CupertinoIcons.alarm_fill,
+        iconBackground: AppColorsDesignTokens.colorPrimaryTint,
+        iconColor: AppColorsDesignTokens.colorPrimary,
+        isGranted: false,
+        isRequired: true,
+        onAllow: _allowAlarms,
+      ));
+    }
+
+    if (!_fullScreenGranted) {
+      items.add(PermissionSetupCard(
+        title: 'Full-screen alerts',
+        subtitle: 'Lets alarm screens appear automatically without tapping the notification.',
+        icon: CupertinoIcons.device_phone_portrait,
+        iconBackground: AppColorsDesignTokens.colorPrimaryTint,
+        iconColor: AppColorsDesignTokens.colorPrimary,
+        isGranted: false,
+        isRequired: true,
+        onAllow: _allowFullScreen,
+      ));
+    }
+
+    if (items.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _dismiss());
+      return const SizedBox.shrink();
+    }
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Permissions needed',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  onPressed: _dismiss,
+                  child: const Icon(CupertinoIcons.xmark, size: 20),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Allow these so your reminders work reliably.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColorsDesignTokens.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...items,
+          ],
         ),
       ),
     );

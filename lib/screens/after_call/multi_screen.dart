@@ -19,6 +19,16 @@ class _AfterCallMultiScreenState extends ConsumerState<AfterCallMultiScreen> {
   late final DateTime _shownAt;
   int? _openMenuIndex;
 
+  void _dismiss() {
+    final dwell = DateTime.now().difference(_shownAt).inSeconds;
+    ref.read(appPrdAnalyticsBridgeProvider).adAftercallDismissed(dwell);
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/main/today');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,118 +64,135 @@ class _AfterCallMultiScreenState extends ConsumerState<AfterCallMultiScreen> {
     final title = '${rows.length} medicines due in the next 4 hours';
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundGrey,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Top Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: const BoxDecoration(
-                color: AppColors.cardWhite,
-                border: Border(
-                  bottom: BorderSide(color: AppColors.divider),
-                ),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.xmark, size: 22, color: AppColors.textSecondary),
-                    onPressed: () {
-                      final dwell = DateTime.now().difference(_shownAt).inSeconds;
-                      ref.read(appPrdAnalyticsBridgeProvider).adAftercallDismissed(dwell);
-                      context.pop();
-                    },
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Call ended',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 48), // Spacer to balance the X button
-                ],
-              ),
-            ),
-            // Header Content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          // Dark strip at top — tap to dismiss
+          GestureDetector(
+            onTap: _dismiss,
+            behavior: HitTestBehavior.opaque,
+            child: const SizedBox(height: 32, width: double.infinity),
+          ),
+          // Full-screen popup card with rounded top corners
+          Expanded(
+            child: Material(
+              color: AppColors.backgroundGrey,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              clipBehavior: Clip.antiAlias,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Tap any to take action',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // ListView with sticky bottom ad banner
-            Expanded(
-              child: Stack(
-                children: [
-                  // List
-                  ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 76), // 76px bottom padding to clear the 50px ad + spacing
-                    itemCount: rows.length,
-                    itemBuilder: (context, index) {
-                      final r = rows[index];
-                      return MedicineTile(
-                        rowModel: r,
-                        showKebabMenu: true,
-                        showPopoverMenu: _openMenuIndex == index,
-                        onKebabTap: () {
-                          setState(() {
-                            if (_openMenuIndex == index) {
-                              _openMenuIndex = null;
-                            } else {
-                              _openMenuIndex = index;
-                            }
-                          });
-                        },
-                        onPerMedTake: () => _perMedAction(row: r, action: 'take'),
-                        onPerMedSnooze: () => _perMedAction(row: r, action: 'snooze'),
-                        onPerMedSkip: () => _perMedAction(row: r, action: 'skip'),
-                      );
-                    },
-                  ),
-                  // Sticky Bottom Ad Overlay
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
+                  // Drag handle
+                  Center(
                     child: Container(
-                      color: AppColors.backgroundGrey,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      child: AdBanner(
-                        placement: 'after_call_multi',
-                        onAftercallTap: () => ref.read(appPrdAnalyticsBridgeProvider).adAftercallBannerClicked(),
+                      margin: const EdgeInsets.only(top: 10, bottom: 6),
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
+                  // Top bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: const BoxDecoration(
+                      color: AppColors.cardWhite,
+                      border: Border(bottom: BorderSide(color: AppColors.divider)),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(CupertinoIcons.xmark, size: 22, color: AppColors.textSecondary),
+                          onPressed: _dismiss,
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Call ended',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Tap any to take action',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Medicine list with sticky ad banner
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 76),
+                          itemCount: rows.length,
+                          itemBuilder: (context, index) {
+                            final r = rows[index];
+                            return MedicineTile(
+                              rowModel: r,
+                              showKebabMenu: true,
+                              showPopoverMenu: _openMenuIndex == index,
+                              onKebabTap: () {
+                                setState(() {
+                                  _openMenuIndex = _openMenuIndex == index ? null : index;
+                                });
+                              },
+                              onPerMedTake: () => _perMedAction(row: r, action: 'take'),
+                              onPerMedSnooze: () => _perMedAction(row: r, action: 'snooze'),
+                              onPerMedSkip: () => _perMedAction(row: r, action: 'skip'),
+                            );
+                          },
+                        ),
+                        // Sticky bottom ad
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: Container(
+                            color: AppColors.backgroundGrey,
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                            child: AdBanner(
+                              placement: 'after_call_multi',
+                              onAftercallTap: () => ref.read(appPrdAnalyticsBridgeProvider).adAftercallBannerClicked(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
