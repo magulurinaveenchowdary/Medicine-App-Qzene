@@ -1,0 +1,77 @@
+{
+  "@@locale": "en",
+  "appTitle": "Medicine Reminder",
+  "@appTitle": {
+    "description": "Application title"
+  },
+  "getStarted": "Get Started",
+  "medicineReminderTagline": "Reliable reminders for your medication.\nFree. Forever.",
+  "stepProgress": "Step {step} of {total}",
+  "@stepProgress": {
+    "placeholders": {
+      "step": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "onboardingPermissionsTitle": "Let's set up reliable reminders",
+  "onboardingPermissionsBody": "We need three permissions so your alarms always fire on time.",
+  "permissionNotifications": "Notifications",
+  "permissionBattery": "Battery Optimization",
+  "permissionBatteryRequired": "*required",
+  "permissionBatterySubtitle": "Fire alarms even when phone is idle",
+  "permissionAlarms": "Alarms & reminders",
+  "allow": "Allow",
+  "granted": "Granted",
+  "denied": "Denied",
+  "continueLabel": "Continue",
+  "languageTitle": "Choose your language",
+  "profileTitle": "Who is this for?",
+  "displayNameLabel": "DISPLAY NAME",
+  "displayNameHint": "e.g. Margaret",
+  "finishSetup": "Finish setup",
+  "todayTab": "Today",
+  "medicinesTab": "Medicines",
+  "historyTab": "History",
+  "settingsTab": "Settings",
+  "addMedicine": "Add Medicine",
+  "addFirstMedicineTitle": "Add your first medicine",
+  "addFirstMedicineBody": "Tap the + button below to start.",
+  "todaysMedicinesHeader": "today's medicines — {count} scheduled",
+  "@todaysMedicinesHeader": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "backToToday": "← Today",
+  "medicinesListTitle": "Medicines",
+  "medicineDetailsTitle": "Medicine Details",
+  "edit": "Edit",
+  "saveMedicine": "Save Medicine",
+  "settingsTitle": "Settings",
+  "profilesTitle": "Profiles",
+  "historyTitle": "History",
+  "cancel": "Cancel",
+  "callEndedTitle": "Call ended",
+  "dismiss": "Dismiss",
+  "search": "Search",
+  "scheduledSection": "SCHEDULED — {count} ACTIVE",
+  "@scheduledSection": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "onDemandSection": "ON DEMAND — {count}",
+  "@onDemandSection": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "sponsored": "Sponsored",
+  "bannerPlaceholder": "Banner ad · 320×50",
+  "nativeAdPlaceholder": "Native ad area",
+  "takeAll": "Take All ✓",
+  "snoozeAll": "Snooze All",
+  "skipAll": "Skip All",
+  "alarmMedicineTime": "{name} · {time}",
+  "@alarmMedicineTime": {
+    "placeholders": {
+      "name": {"type": "String"},
+      "time": {"type": "String"}
+    }
+  },
+  "openDeveloperAlarmPreview": "Preview alarm screen (dev)"
+}

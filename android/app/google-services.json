@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1023981575597",
+    "project_id": "med-reminder-93984",
+    "storage_bucket": "med-reminder-93984.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1023981575597:android:1b7f4ec7622363c4fc9524",
+        "android_client_info": {
+          "package_name": "com.nanogear.med_reminder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCHEeOwuJ0AQSsVrw7HZKb1KqWdsRTMGqw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
