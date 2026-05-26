@@ -29,6 +29,21 @@ class AppAndroidPermissionsRequestService {
     return status.isGranted;
   }
 
+  /// Opens the system settings screen for SCHEDULE_EXACT_ALARM when needed.
+  /// Returns true when the settings screen was opened, false otherwise.
+  Future<bool> openScheduleExactAlarmSettings() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final result = await _alarmChannel.invokeMapMethod<String, dynamic>(
+        'requestScheduleExactAlarmPermission',
+      );
+      if (result?['alreadyGranted'] == true) return false;
+      return result?['openedSettings'] == true;
+    } on PlatformException {
+      return false;
+    }
+  }
+
   Future<bool> isBatteryOptimizationExemptionGranted() async {
     if (!Platform.isAndroid) return true;
     final status = await Permission.ignoreBatteryOptimizations.status;
@@ -38,6 +53,18 @@ class AppAndroidPermissionsRequestService {
   Future<bool> requestBatteryOptimizationExemption() async {
     if (!Platform.isAndroid) return true;
     final status = await Permission.ignoreBatteryOptimizations.request();
+    return status.isGranted;
+  }
+
+  Future<bool> isOverlayPermissionGranted() async {
+    if (!Platform.isAndroid) return true;
+    final status = await Permission.systemAlertWindow.status;
+    return status.isGranted;
+  }
+
+  Future<bool> requestOverlayPermission() async {
+    if (!Platform.isAndroid) return true;
+    final status = await Permission.systemAlertWindow.request();
     return status.isGranted;
   }
 

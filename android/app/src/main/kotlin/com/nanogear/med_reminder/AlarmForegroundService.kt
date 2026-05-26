@@ -33,8 +33,16 @@ class AlarmForegroundService : Service() {
         val body = intent?.getStringExtra(EXTRA_BODY) ?: "Time to take your medicine"
 
         val isAfterCall = type == TYPE_AFTER_CALL
-        val notifId = if (isAfterCall) 200_002
-                      else occurrenceId.hashCode().let { if (it == 0) 1 else Math.abs(it) }
+        val notifId = if (isAfterCall) {
+            200_002
+        } else {
+            val hash = occurrenceId.hashCode()
+            when {
+                hash == 0 -> 1
+                hash == Int.MIN_VALUE -> 2
+                else -> kotlin.math.abs(hash)
+            }
+        }
         val route = if (isAfterCall) "/after-call/single"
                     else "/alarm?occurrenceId=$occurrenceId"
         val launchUri = if (isAfterCall) Uri.parse("medreminder://after-call/single")

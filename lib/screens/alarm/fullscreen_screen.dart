@@ -21,6 +21,20 @@ import 'package:med_reminder/features/medicines/application/MedicineAppDataNotif
 import 'package:med_reminder/features/medicines/domain/MedicineReminderDataModels.dart';
 import 'package:med_reminder/l10n/app_localizations.dart';
 
+// File-local safe pop helper used by alarm fullscreen widgets.
+void _safePop(BuildContext context) {
+  try {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      GoRouter.of(context).go('/main/today');
+    }
+  } catch (_) {
+    // best-effort fallback — swallow errors
+  }
+}
+
 class AlarmFullscreenScreen extends ConsumerStatefulWidget {
   const AlarmFullscreenScreen({
     super.key,
@@ -142,6 +156,19 @@ class _SingleAlarmBody extends ConsumerWidget {
   final DateTime openedAt;
   final String? occurrenceId;
 
+  static void _safePop(BuildContext context) {
+    try {
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop();
+      } else {
+        GoRouter.of(context).go('/main/today');
+      }
+    } catch (_){
+      // swallow any errors — best effort fallback
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rows = ref.watch(medicineAppDataNotifierProvider).maybeWhen(
@@ -215,7 +242,7 @@ class _SingleAlarmBody extends ConsumerWidget {
               PrimaryActionButton.take(
                 label: 'Take ✓',
                 onPressed: row == null
-                    ? () => context.pop()
+                    ? () => _safePop(context)
                     : () async {
                         await ref.read(appFirebaseAnalyticsLoggingServiceProvider).logPrdEvent(
                           AppAnalyticsEventNamesConstants.alarmTakeTapped,
@@ -226,8 +253,8 @@ class _SingleAlarmBody extends ConsumerWidget {
                             AppAnalyticsParameterNamesConstants.secondsToAction: 0,
                           },
                         );
+                        if (context.mounted) _safePop(context);
                         await ref.read(medicineAppDataNotifierProvider.notifier).markDoseTaken(row.occurrenceId);
-                        if (context.mounted) context.pop();
                       },
               ),
               const SizedBox(height: AppDimensions.gapSM),
@@ -241,11 +268,11 @@ class _SingleAlarmBody extends ConsumerWidget {
                         final durationMin = await context.push<int>(
                           '/alarm/snooze?medicineId=${row?.medicineId ?? ''}&consolidated=0',
                         );
-                        if (durationMin != null && row != null && context.mounted) {
+                          if (durationMin != null && row != null) {
+                          if (context.mounted) _safePop(context);
                           await ref
                               .read(medicineAppDataNotifierProvider.notifier)
                               .markDoseSnoozed(row.occurrenceId, durationMin);
-                          if (context.mounted) context.pop();
                         }
                       },
                     ),
@@ -258,11 +285,13 @@ class _SingleAlarmBody extends ConsumerWidget {
                       onPressed: () async {
                         if (row != null) {
                           await ref.read(appPrdAnalyticsBridgeProvider).alarmSkipTapped(row.medicineId);
+                          if (context.mounted) _safePop(context);
                           await ref
                               .read(medicineAppDataNotifierProvider.notifier)
                               .markDoseSkipped(row.occurrenceId);
+                        } else if (context.mounted) {
+                          _safePop(context);
                         }
-                        if (context.mounted) context.pop();
                       },
                     ),
                   ),
@@ -310,7 +339,7 @@ class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> 
           .read(medicineAppDataNotifierProvider.notifier)
           .markDoseSnoozed(row.occurrenceId, durationMin);
     }
-    if (mounted) context.pop();
+    if (mounted) _safePop(context);
   }
 
   Future<void> _onPopInvoked(bool didPop, List<MedicineDoseDisplayRowModel> rows) async {
@@ -460,12 +489,12 @@ class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> 
                                 await ref.read(appPrdAnalyticsBridgeProvider).alarmSkipAllTapped(rows.length);
                                 ref.read(alarmSessionActionCountsProvider.notifier).state =
                                     AlarmSessionActionCountsModel(skipCount: rows.length);
+                                if (context.mounted) _safePop(context);
                                 for (final row in rows) {
                                   await ref
                                       .read(medicineAppDataNotifierProvider.notifier)
                                       .markDoseSkipped(row.occurrenceId);
                                 }
-                                if (context.mounted) context.pop();
                               },
                             ),
                           ),
@@ -487,12 +516,12 @@ class _ConsolidatedAlarmBodyState extends ConsumerState<_ConsolidatedAlarmBody> 
                                 await ref.read(appPrdAnalyticsBridgeProvider).alarmTakeAllTapped(rows.length);
                                 ref.read(alarmSessionActionCountsProvider.notifier).state =
                                     AlarmSessionActionCountsModel(takeCount: rows.length);
+                                if (context.mounted) _safePop(context);
                                 for (final row in rows) {
                                   await ref
                                       .read(medicineAppDataNotifierProvider.notifier)
                                       .markDoseTaken(row.occurrenceId);
                                 }
-                                if (context.mounted) context.pop();
                               },
                             ),
                           ),

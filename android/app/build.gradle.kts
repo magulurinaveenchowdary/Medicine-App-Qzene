@@ -60,4 +60,6 @@ flutter {
 dependencies {
     // Required by flutter_local_notifications (Java 8+ APIs on older minSdk).
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Ensure Play Core classes are available for runtime and R8 shrinking.
+    implementation("com.google.android.play:core:1.10.3")
 }

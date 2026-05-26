@@ -33,10 +33,14 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
   var notificationGranted = false;
   var batteryGranted = false;
   var alarmsGranted = false;
+  var fullScreenGranted = false;
   var _awaitingBatterySettingsReturn = false;
+  var _awaitingAlarmSettingsReturn = false;
+  var _awaitingFullScreenSettingsReturn = false;
   var _notifPromptLogged = false;
   var _batteryPromptLogged = false;
   var _alarmsPromptLogged = false;
+  var _fullScreenPromptLogged = false;
 
   AppFirebaseAnalyticsLoggingService get _analytics =>
       ref.read(appFirebaseAnalyticsLoggingServiceProvider);
@@ -47,7 +51,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
   String get _androidVersionParam =>
       Platform.isAndroid ? Platform.operatingSystemVersion : 'unknown';
 
-  bool get _canContinue => batteryGranted && alarmsGranted;
+  bool get _canContinue => batteryGranted && alarmsGranted && fullScreenGranted;
 
   Future<void> _applyBatteryGranted(bool granted) async {
     if (!mounted || batteryGranted == granted) return;
@@ -65,6 +69,18 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
   Future<void> _applyAlarmsGranted(bool granted) async {
     if (!mounted || alarmsGranted == granted) return;
     setState(() => alarmsGranted = granted);
+    await _analytics.logPrdEvent(
+      AppAnalyticsEventNamesConstants.onbAlarmsPermissionResult,
+      {
+        AppAnalyticsParameterNamesConstants.result:
+            granted ? 'granted' : 'denied',
+      },
+    );
+  }
+
+  Future<void> _applyFullScreenGranted(bool granted) async {
+    if (!mounted || fullScreenGranted == granted) return;
+    setState(() => fullScreenGranted = granted);
     await _analytics.logPrdEvent(
       AppAnalyticsEventNamesConstants.onbAlarmsPermissionResult,
       {
@@ -94,6 +110,15 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
   Future<void> _logAlarmsShownOnce() async {
     if (_alarmsPromptLogged) return;
     _alarmsPromptLogged = true;
+    await _analytics.logPrdEvent(
+      AppAnalyticsEventNamesConstants.onbAlarmsPermissionShown,
+      {AppAnalyticsParameterNamesConstants.androidVersion: _androidVersionParam},
+    );
+  }
+
+  Future<void> _logFullScreenShownOnce() async {
+    if (_fullScreenPromptLogged) return;
+    _fullScreenPromptLogged = true;
     await _analytics.logPrdEvent(
       AppAnalyticsEventNamesConstants.onbAlarmsPermissionShown,
       {AppAnalyticsParameterNamesConstants.androidVersion: _androidVersionParam},
@@ -137,9 +162,31 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
 
   Future<void> _onAllowAlarmsTap() async {
     await _logAlarmsShownOnce();
+    if (await _permissions.isExactAlarmPermissionGranted()) {
+      await _applyAlarmsGranted(true);
+      return;
+    }
+
+    final openedSettings = await _permissions.openScheduleExactAlarmSettings();
+    if (openedSettings) {
+      _awaitingAlarmSettingsReturn = true;
+      return;
+    }
+
     final granted = await _permissions.requestScheduleExactAlarm();
     if (!mounted) return;
     await _applyAlarmsGranted(granted);
+  }
+
+  Future<void> _onAllowFullScreenTap() async {
+    await _logFullScreenShownOnce();
+    if (await _permissions.isFullScreenIntentGranted()) {
+      await _applyFullScreenGranted(true);
+      return;
+    }
+
+    _awaitingFullScreenSettingsReturn = true;
+    await _permissions.openFullScreenIntentSettings();
   }
 
   Future<void> _onAppResumed() async {
@@ -150,6 +197,22 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
       if (granted) {
         _awaitingBatterySettingsReturn = false;
         await _applyBatteryGranted(true);
+      }
+    }
+    if (_awaitingAlarmSettingsReturn) {
+      final granted = await _permissions.isExactAlarmPermissionGranted();
+      if (!mounted) return;
+      if (granted) {
+        _awaitingAlarmSettingsReturn = false;
+        await _applyAlarmsGranted(true);
+      }
+    }
+    if (_awaitingFullScreenSettingsReturn) {
+      final granted = await _permissions.isFullScreenIntentGranted();
+      if (!mounted) return;
+      if (granted) {
+        _awaitingFullScreenSettingsReturn = false;
+        await _applyFullScreenGranted(true);
       }
     }
   }
@@ -174,6 +237,11 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
           await _permissions.isBatteryOptimizationExemptionGranted();
       if (mounted && batteryAlreadyGranted) {
         setState(() => batteryGranted = true);
+      }
+      final fullScreenAlreadyGranted =
+          await _permissions.isFullScreenIntentGranted();
+      if (mounted && fullScreenAlreadyGranted) {
+        setState(() => fullScreenGranted = true);
       }
       if (Platform.isAndroid) {
         await ref.read(appPrdAnalyticsBridgeProvider).onbAutostartShown('other');
@@ -254,6 +322,16 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
           isRequired: true,
           isGranted: alarmsGranted,
           onAllow: alarmsGranted ? null : _onAllowAlarmsTap,
+        ),
+        PermissionSetupCard(
+          title: l10n.permissionFullScreen,
+          subtitle: fullScreenGranted ? l10n.granted : l10n.permissionFullScreenSubtitle,
+          icon: CupertinoIcons.exclamationmark_circle,
+          iconBackground: AppColorsDesignTokens.colorHealthTint,
+          iconColor: AppColorsDesignTokens.colorHealth,
+          isRequired: true,
+          isGranted: fullScreenGranted,
+          onAllow: fullScreenGranted ? null : _onAllowFullScreenTap,
         ),
       ],
     ),

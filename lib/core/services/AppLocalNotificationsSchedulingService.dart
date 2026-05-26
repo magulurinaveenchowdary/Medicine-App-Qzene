@@ -17,6 +17,9 @@ class AppLocalNotificationsSchedulingService {
   final AppAndroidAlarmSchedulingService _androidAlarms;
   bool _didInitialize = false;
 
+  static int _normalizeAlarmId(int alarmId) =>
+      alarmId == 0 ? 1 : alarmId.abs();
+
   static void Function(String occurrenceId, String actionId)?
       onNotificationAction;
 
@@ -78,7 +81,7 @@ class AppLocalNotificationsSchedulingService {
 
       // Schedule Android AlarmManager clock (native full-screen alarm)
       await _androidAlarms.scheduleAlarmClock(
-        alarmId: reminder.notificationId,
+        alarmId: _normalizeAlarmId(reminder.notificationId),
         triggerAtMillis: reminder.scheduledAt.millisecondsSinceEpoch,
         occurrenceId: reminder.occurrenceId,
         title: reminder.title,

@@ -52,11 +52,17 @@ final appGoRouterProvider = Provider<GoRouter>((ref) {
       // Dart's Uri puts the authority ("after-call", "alarm") in uri.host,
       // not uri.path, so we must combine them to get the full route path.
       final host = uri.host; // e.g. 'after-call', 'alarm'
-      final path = uri.path; // e.g. '/single', ''
-      final fullPath = host.isNotEmpty ? '/$host$path' : path;
+      final path = uri.path.trim(); // e.g. '/single', '/'
+      final rawFullPath = host.isNotEmpty ? '/$host$path' : path;
+        var fullPath = rawFullPath;
+        // Remove a trailing slash except when the path is just '/'
+        if (fullPath.endsWith('/') && fullPath.length > 1) {
+          fullPath = fullPath.substring(0, fullPath.length - 1);
+        }
+      final query = uri.query.trim();
       if (fullPath.isNotEmpty && fullPath != '/') {
-        if (uri.query.isNotEmpty) {
-          return '$fullPath?${uri.query}';
+        if (query.isNotEmpty) {
+          return '$fullPath?$query';
         }
         return fullPath;
       }

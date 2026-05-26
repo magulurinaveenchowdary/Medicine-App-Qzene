@@ -11,6 +11,7 @@
          improving onboarding completion rates. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Required on Android 9+ (API 28) to call startForeground() at all. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

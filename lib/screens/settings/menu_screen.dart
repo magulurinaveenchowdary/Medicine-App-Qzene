@@ -37,8 +37,11 @@ class _SettingsMenuScreenState extends ConsumerState<SettingsMenuScreen>
   bool _batteryGranted = false;
   bool _alarmsGranted = false;
   bool _fullScreenGranted = false;
+  bool _overlayGranted = false;
   bool _awaitingBatteryReturn = false;
+  bool _awaitingAlarmsReturn = false;
   bool _awaitingFullScreenReturn = false;
+  bool _awaitingOverlayReturn = false;
 
   AppAndroidPermissionsRequestService get _svc =>
       ref.read(appAndroidPermissionsRequestServiceProvider);
@@ -70,12 +73,28 @@ class _SettingsMenuScreenState extends ConsumerState<SettingsMenuScreen>
         setState(() => _batteryGranted = true);
       }
     }
+    if (_awaitingAlarmsReturn) {
+      final granted = await _svc.isExactAlarmPermissionGranted();
+      if (!mounted) return;
+      if (granted) {
+        _awaitingAlarmsReturn = false;
+        setState(() => _alarmsGranted = true);
+      }
+    }
     if (_awaitingFullScreenReturn) {
       final granted = await _svc.isFullScreenIntentGranted();
       if (!mounted) return;
       if (granted) {
         _awaitingFullScreenReturn = false;
         setState(() => _fullScreenGranted = true);
+      }
+    }
+    if (_awaitingOverlayReturn) {
+      final granted = await _svc.isOverlayPermissionGranted();
+      if (!mounted) return;
+      if (granted) {
+        _awaitingOverlayReturn = false;
+        setState(() => _overlayGranted = true);
       }
     }
   }
@@ -87,6 +106,7 @@ class _SettingsMenuScreenState extends ConsumerState<SettingsMenuScreen>
     final battery = await _svc.isBatteryOptimizationExemptionGranted();
     final alarms = await _svc.isExactAlarmPermissionGranted();
     final fullScreen = await _svc.isFullScreenIntentGranted();
+    final overlay = await _svc.isOverlayPermissionGranted();
     if (mounted) {
       setState(() {
         afterCallOn = hasPermission && (prefs.getBool('after_call_enabled') ?? true);
@@ -94,6 +114,7 @@ class _SettingsMenuScreenState extends ConsumerState<SettingsMenuScreen>
         _batteryGranted = battery;
         _alarmsGranted = alarms;
         _fullScreenGranted = fullScreen;
+        _overlayGranted = overlay;
       });
     }
   }
@@ -121,6 +142,18 @@ class _SettingsMenuScreenState extends ConsumerState<SettingsMenuScreen>
   }
 
   Future<void> _allowAlarms() async {
+    if (await _svc.isExactAlarmPermissionGranted()) {
+      if (!mounted) return;
+      setState(() => _alarmsGranted = true);
+      return;
+    }
+
+    final openedSettings = await _svc.openScheduleExactAlarmSettings();
+    if (openedSettings) {
+      _awaitingAlarmsReturn = true;
+      return;
+    }
+
     final granted = await _svc.requestScheduleExactAlarm();
     if (!mounted) return;
     setState(() => _alarmsGranted = granted);
@@ -129,6 +162,24 @@ class _SettingsMenuScreenState extends ConsumerState<SettingsMenuScreen>
   Future<void> _allowFullScreen() async {
     _awaitingFullScreenReturn = true;
     await _svc.openFullScreenIntentSettings();
+  }
+
+  Future<void> _allowOverlay() async {
+    if (await _svc.isOverlayPermissionGranted()) {
+      if (!mounted) return;
+      setState(() => _overlayGranted = true);
+      return;
+    }
+
+    final granted = await _svc.requestOverlayPermission();
+    if (!mounted) return;
+    if (granted) {
+      setState(() => _overlayGranted = true);
+      return;
+    }
+
+    _awaitingOverlayReturn = true;
+    openAppSettings();
   }
 
   Future<void> _onAfterCallToggleTap() async {
@@ -289,6 +340,18 @@ class _SettingsMenuScreenState extends ConsumerState<SettingsMenuScreen>
             isGranted: _fullScreenGranted,
             isRequired: !_fullScreenGranted,
             onAllow: _fullScreenGranted ? null : _allowFullScreen,
+          ),
+          PermissionSetupCard(
+            title: 'Appear on top',
+            subtitle: _overlayGranted
+                ? 'App can appear on top of other apps for post-call display.'
+                : 'Required to show the post-call screen above other apps and the lock screen.',
+            icon: CupertinoIcons.rectangle_3_offgrid,
+            iconBackground: AppColorsDesignTokens.colorWarningTint,
+            iconColor: AppColorsDesignTokens.colorWarning,
+            isGranted: _overlayGranted,
+            isRequired: !_overlayGranted,
+            onAllow: _overlayGranted ? null : _allowOverlay,
           ),
           const SizedBox(height: AppDimensions.gapMD),
           SettingsGroupWidget(

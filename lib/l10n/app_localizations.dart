@@ -127,7 +127,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingPermissionsBody.
   ///
   /// In en, this message translates to:
-  /// **'We need three permissions so your alarms always fire on time.'**
+  /// **'We need four permissions so your alarms always fire on time.'**
   String get onboardingPermissionsBody;
 
   /// No description provided for @permissionNotifications.
@@ -159,6 +159,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Alarms & reminders'**
   String get permissionAlarms;
+
+  /// No description provided for @permissionFullScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Full-Screen Alerts'**
+  String get permissionFullScreen;
+
+  /// No description provided for @permissionFullScreenSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show alerts on top of lock screen after calls'**
+  String get permissionFullScreenSubtitle;
 
   /// No description provided for @allow.
   ///

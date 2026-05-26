@@ -86,6 +86,11 @@ class MainActivity : FlutterActivity() {
                     cancelAllAlarms()
                     result.success(null)
                 }
+                "cancelAlarms" -> {
+                    val alarmIds = call.argument<List<Int>>("alarmIds") ?: emptyList()
+                    cancelAlarms(alarmIds)
+                    result.success(null)
+                }
                 "canUseFullScreenIntent" -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -110,6 +115,8 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
+
+    
 
     private fun readCanScheduleExactAlarms(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
@@ -208,12 +215,22 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun sanitizeRoute(rawRoute: String?): String? {
+        if (rawRoute.isNullOrBlank()) return null
+        val trimmed = rawRoute.trim()
+        val parts = trimmed.split("?", limit = 2)
+        val pathPart = parts[0].trim().removeSuffix("/")
+        val queryPart = parts.getOrNull(1)?.trim()?.replace(Regex("\\s+"), " ")
+        return if (queryPart.isNullOrBlank()) pathPart else "$pathPart?$queryPart"
+    }
+
     private fun extractRoute(intent: Intent?): String? {
         if (intent == null) return null
-        intent.getStringExtra("route")?.let { return it }
+        intent.getStringExtra("route")?.let { return sanitizeRoute(it) }
         intent.data?.let { uri ->
-            val path = uri.path ?: return null
-            return if (uri.query.isNullOrEmpty()) path else "$path?${uri.query}"
+            val path = uri.path?.trim()?.removeSuffix("/") ?: return null
+            val query = uri.query?.trim() ?: ""
+            return if (query.isEmpty()) path else "$path?$query"
         }
         return null
     }
@@ -259,6 +276,18 @@ class MainActivity : FlutterActivity() {
     private fun cancelAllAlarms() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         for (id in 0 until 512) {
+            val intent = Intent(this, DoseAlarmReceiver::class.java)
+            val flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            val pending = PendingIntent.getBroadcast(this, id, intent, flags) ?: continue
+            alarmManager.cancel(pending)
+            pending.cancel()
+        }
+    }
+
+    private fun cancelAlarms(alarmIds: List<Int>) {
+        if (alarmIds.isEmpty()) return
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        for (id in alarmIds) {
             val intent = Intent(this, DoseAlarmReceiver::class.java)
             val flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
             val pending = PendingIntent.getBroadcast(this, id, intent, flags) ?: continue

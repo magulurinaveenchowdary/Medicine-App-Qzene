@@ -28,7 +28,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingPermissionsBody =>
-      'We need three permissions so your alarms always fire on time.';
+      'We need four permissions so your alarms always fire on time.';
 
   @override
   String get permissionNotifications => 'Notifications';
@@ -44,6 +44,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get permissionAlarms => 'Alarms & reminders';
+
+  @override
+  String get permissionFullScreen => 'Full-Screen Alerts';
+
+  @override
+  String get permissionFullScreenSubtitle =>
+      'Show alerts on top of lock screen after calls';
 
   @override
   String get allow => 'Allow';
